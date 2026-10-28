@@ -1,0 +1,9 @@
+# Install output and local builds
+/installed/
+/dist/
+__pycache__/
+
+# Mod archives: only the MIT-licensed ones are part of the repository, the rest is downloaded by the installer
+/mods/*
+!/mods/UnlockTheFps-*.zip
+!/mods/AdjustTheFov-*.zip

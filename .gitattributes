@@ -1,0 +1,3 @@
+# Keep scripts byte for byte (CRLF, BOM): cmd needs CRLF, PowerShell 5.1 needs the BOM
+*.bat -text
+*.ps1 -text

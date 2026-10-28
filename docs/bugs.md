@@ -67,7 +67,7 @@
 - ME3 Manager has official GitHub releases too (`2Pz/me3-manager`, MIT); its Windows zip is byte-identical to the Nexus file.
 - Elden Vins and EVN Russian: permissions unknown (Nexus pages return 403 to tools). The owner chose to host Vins
   and the merged Russian patch on Google Drive and took responsibility for the authors' permission.
-- The Nexus id of the Seamless Russian translation (775) is inferred from the owner's link list, not confirmed.
+- The Seamless Russian translation is Nexus mod 775 (confirmed by the owner).
 
 ## Google Drive downloads
 

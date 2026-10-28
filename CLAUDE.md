@@ -33,7 +33,8 @@ only `install.bat` from the latest release. UI style follows H0oxy's DS2 Seamles
 ## Updating Elden Vins
 
 1. Put the new Vins zip into `mods/`, run `tools\merge_evn_ru.py`.
-2. Upload both zips to Google Drive (anyone with the link), put their file ids, names and SHA-256 into `$sources`.
+2. Upload both zips to Google Drive (anyone with the link), put their file ids, names and SHA-256 into `$sources`,
+   and the new Vins zip's size into `evn.VinsSize`.
 3. Run the test, commit, push to `main`: players get it on their next `install.bat` run.
 
 ## Rules

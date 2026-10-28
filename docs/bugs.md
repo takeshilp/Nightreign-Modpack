@@ -69,6 +69,19 @@
   and the merged Russian patch on Google Drive and took responsibility for the authors' permission.
 - The Seamless Russian translation is Nexus mod 775 (confirmed by the owner).
 
+## Nexus names browser downloads its own way
+
+- Symptom: a player downloaded Seamless Co-op and its translation from Nexus, even put them into `mods\`, and the
+  installer kept waiting ("Жду файлы...").
+- Cause: archives were found by file name (`Seamless Co-op (Nightreign)-*.zip`, the names Vortex/ME3 Manager use),
+  but a browser download is named `Nightreign Seamless Co-op v1.1.3 3 1.13 2026-07-02T16-30Z zFdpCI7GR.zip`,
+  `Russian 775 1 2026-07-23T19-42Z 60hdUAE7y.zip`.
+- Fix: `Find-Archive` recognises an archive by an entry inside it (`Has`, plus `Text` for the translation's
+  `YUINEXUS` keys, which Elden Ring's Seamless lacks). The Vins patch is tied to the Vins zip by size (`VinsSize`),
+  not by its name. Opening a zip reads only its directory: all lookups take ~0.2 s, the 6 GB Vins zip included.
+- Verified: test with the Nexus names and with look-alikes (Elden Ring Seamless, another russian.json); real
+  archives in `mods\` and `D:\1Downloads\NexusMods` recognised.
+
 ## Google Drive downloads
 
 - Files over ~100 MB come back as a "can't scan for viruses" HTML page; its hidden form fields (`id`, `export`,

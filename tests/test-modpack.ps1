@@ -2,8 +2,7 @@
 # install, settings editor, reinstall with fewer mods (settings kept), Russian patch without Vins or for another
 # Vins version, removal. No network: every archive is already in mods\ or in the fake Downloads.
 $ErrorActionPreference = 'Stop'
-if (Get-Process nightreign -ErrorAction SilentlyContinue) { throw 'Close the game first: the installer refuses to run while it is open.' }
-$t = Join-Path $env:TEMP "nrpack-test-$(Get-Random)"
+$t =Join-Path $env:TEMP "nrpack-test-$(Get-Random)"
 $pack = "$t\pack"; $root = "$pack\installed"; $desk = "$t\desktop"; $dl = "$t\downloads"
 
 function Fake($dir, $zipName, [hashtable]$files) {
@@ -28,6 +27,7 @@ try {
     $vinsZip = 'ELDEN VINS NIGHTREIGN-287-1-5-2-1.zip'
     Fake "$pack\mods" $vinsZip @{
         'ELDEN VINS NIGHTREIGN\ELDEN VINS NIGHTREIGN.me3'            = 'original'
+        'ELDEN VINS NIGHTREIGN\mod\regulation.bin'                   = 'params'
         'ELDEN VINS NIGHTREIGN\OPEN-THIS-TO-INSTALL-SKINS.bat'       = 'x'
         'ELDEN VINS NIGHTREIGN\mod\msg\rusru\item_dlc01.msgbnd.dcx'  = 'vins-text'
         'ELDEN VINS NIGHTREIGN\mod\parts\wp_a.partsbnd.dcx'          = 'skin-a'
@@ -40,13 +40,23 @@ try {
     Fake "$pack\mods" 'UnlockTheFps-25-1.zip' @{ 'UnlockTheFps.dll' = 'x'; 'UnlockTheFps\config.ini' = "[unlockthefps]`r`nlimit = 120" }
     Fake "$pack\mods" 'AdjustTheFov-119-1.zip' @{ 'AdjustTheFov.dll' = 'x'; 'AdjustTheFov\config.ini' = "[fov]`r`nvalue = 60" }
     Fake "$pack\mods" 'Me3_Manager_1.5.2_Windows.zip' @{ 'Me3_Manager_1.5.2\Me3_Manager.exe' = 'x' }
-    # Nexus-only mods: as the player's browser leaves them, plus a Firefox placeholder of an unfinished download
-    Fake $dl 'Seamless Co-op (Nightreign)-1.zip' @{
+    # The patch fits only the Vins zip it was built from, recognised by size: point it at the fake one. The copy also
+    # drops the "close the game" check, so the test runs while the real game is open (it touches only temp folders)
+    $ps1 = "$pack\install.ps1"
+    $code = [IO.File]::ReadAllText($ps1) -replace 'VinsSize = \d+', "VinsSize = $((Get-Item -LiteralPath "$pack\mods\$vinsZip").Length)" -replace '(?m)^if \(Get-Process nightreign.*$', ''
+    [IO.File]::WriteAllText($ps1, $code, (New-Object Text.UTF8Encoding $true))
+    # Nexus-only mods named the way Nexus names browser downloads, a Firefox placeholder of an unfinished download,
+    # and look-alikes that must not be taken: Elden Ring's Seamless Co-op and someone else's russian.json
+    $coopZip = 'Nightreign Seamless Co-op v1.1.3 3 1.13 2026-07-02T16-30Z zFdpCI7GR.zip'; $ruZip = 'Russian 775 1 2026-07-23T19-42Z 60hdUAE7y.zip'
+    Fake $dl $coopZip @{
         'nrsc_launcher.exe' = 'x'; 'SeamlessCoop\nrsc.dll' = 'x'; 'SeamlessCoop\locale\english.json' = '{}'
         'SeamlessCoop\nrsc_settings.ini' = "[SCALING]`r`nhealth_scaling = 100`r`n;Use any alphanumeric characters (limit = 120)`r`nsave_file_extension = co2"
     }
-    Fake $dl 'Russian Translation of Seamless Co-op (Nightreign)-1.zip' @{ 'russian.json' = '{}' }
-    New-Item -ItemType File "$dl\Seamless Co-op (Nightreign)-2.zip", "$dl\Seamless Co-op (Nightreign)-2.zip.part" | Out-Null
+    Fake $dl $ruZip @{ 'russian.json' = '{ "MODMESSAGE_YUINEXUSPAUSED": "Пауза" }' }
+    Fake $dl 'Seamless Co-op v2.0.1.zip' @{ 'SeamlessCoop\ersc.dll' = 'x'; 'russian.json' = '{ "MODMESSAGE_ELDENRING": "x" }' }
+    New-Item -ItemType File "$dl\Nightreign Seamless Co-op v1.1.4.zip", "$dl\Nightreign Seamless Co-op v1.1.4.zip.part" | Out-Null
+    (Get-ChildItem $dl -Filter '*.zip') | ForEach-Object { $_.LastWriteTime = (Get-Date).AddMinutes(-5) }   # look-alikes are not just older
+    (Get-Item -LiteralPath "$dl\Seamless Co-op v2.0.1.zip").LastWriteTime = Get-Date
     $msg = "$root\vins\msg\rusru\item_dlc01.msgbnd.dcx"
     $coopLnk = "$desk\NIGHTREIGN Seamless Co-op.lnk"; $vinsLnk = "$desk\NIGHTREIGN Elden Vins онлайн.lnk"
 
@@ -55,10 +65,11 @@ try {
     Pack -Settings skip
     foreach ($p in "$root\SeamlessCoop\nrsc.dll", "$root\SeamlessCoop\locale\russian.json", "$root\UnlockTheFps.dll",
         "$root\AdjustTheFov\config.ini", "$root\vins\dll\cl_server_redirector.ini", $coopLnk, $vinsLnk,
-        "$pack\mods\Seamless Co-op (Nightreign)-1.zip", "$pack\mods\Russian Translation of Seamless Co-op (Nightreign)-1.zip") {
+        "$pack\mods\$coopZip", "$pack\mods\$ruZip") {
         Check (Test-Path -LiteralPath $p) "missing $p"
     }
-    Check (-not (Test-Path -LiteralPath "$pack\mods\Seamless Co-op (Nightreign)-2.zip")) 'unfinished download ignored'
+    Check (-not (Test-Path -LiteralPath "$pack\mods\Nightreign Seamless Co-op v1.1.4.zip") -and -not (Test-Path -LiteralPath "$pack\mods\Seamless Co-op v2.0.1.zip")) 'unfinished download and look-alikes ignored'
+    Check ((Text "$root\SeamlessCoop\locale\russian.json") -match 'YUINEXUS') 'the right russian.json'
     Check (-not (Test-Path "$root\Me3_Manager_1.5.2")) 'Manager switched off in the checklist'
     Check (-not (Test-Path "$root\nrsc_launcher.exe") -and -not (Test-Path "$root\vins\OPEN-THIS-TO-INSTALL-SKINS.bat")) 'only mod folders extracted'
     Check ((Text "$root\vins\parts\wp_a_l.partsbnd.dcx") -eq 'skin-a' -and (Text "$root\vins\parts\sub\am_b_l.partsbnd.dcx") -eq 'skin-b') 'skin copies'
@@ -98,8 +109,11 @@ try {
     Check (Ini 'modpack.txt' 'mods = coop') 'patch without Vins dropped'
     Check (-not (Test-Path "$root\vins") -and (Text "$root\Seamless Co-op.me3") -notmatch 'packages') 'no Vins package'
     Check ((Test-Path -LiteralPath $coopLnk) -and -not (Test-Path -LiteralPath $vinsLnk)) 'server shortcut removed'
-    $newer = Copy-Item -LiteralPath "$pack\mods\$vinsZip" "$pack\mods\ELDEN VINS NIGHTREIGN-287-1-6-0-2.zip" -PassThru
-    $newer.LastWriteTime = (Get-Date).AddMinutes(1)
+    # A newer Vins (another size) as Nexus names it
+    Fake "$pack\mods" 'ELDEN VINS NIGHTREIGN 287 1.6.0 2026-11-01T10-00Z abc.zip' @{
+        'ELDEN VINS NIGHTREIGN\mod\regulation.bin' = 'params 1.6'; 'ELDEN VINS NIGHTREIGN\mod\msg\rusru\item_dlc01.msgbnd.dcx' = 'vins-text'
+    }
+    (Get-Item -LiteralPath "$pack\mods\ELDEN VINS NIGHTREIGN 287 1.6.0 2026-11-01T10-00Z abc.zip").LastWriteTime = (Get-Date).AddMinutes(1)
     Pack -Mods 'vins,evn' -Settings skip
     Check ((Ini 'modpack.txt' 'mods = vins') -and (Text $msg) -eq 'vins-text') 'patch for another Vins version skipped'
 

@@ -3,6 +3,7 @@
 param([string[]]$Mods, [ValidateSet('ask', 'only', 'skip')][string]$Settings = 'ask', [ValidateSet('install', 'remove')][string]$Action)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $src = Join-Path $PSScriptRoot 'mods'          # mod archives: shipped, downloaded or picked up from Downloads
 $root = Join-Path $PSScriptRoot 'installed'    # everything the pack installs; each install rebuilds it from scratch
@@ -11,23 +12,26 @@ $nrsc = 'SeamlessCoop/nrsc.dll'
 # Test seams: $global:TestDesktop and $global:TestDownloads replace the real folders
 $desktop = if ($global:TestDesktop) { $global:TestDesktop } else { [Environment]::GetFolderPath('Desktop') }
 
-# Where each archive comes from. Pattern = file name in mods\ or Downloads, the newest match wins.
-# Drive = Google Drive file id of the pack owner's upload, checked against Sha256 (empty: not uploaded, use Nexus);
-# GitHub = owner/repo whose latest release has it; Nexus = page the player downloads it from by hand.
+# Where each archive comes from. Archives in mods\ or Downloads are recognised by what is inside (Has = entry name,
+# -like; Text = a string that entry must contain): Nexus names browser downloads its own way. Pattern = exact file
+# name instead, for the pack's own patch. The newest match wins.
+# Drive = Google Drive file id of the pack owner's upload, saved as File and checked against Sha256 (empty: use Nexus);
+# GitHub = owner/repo whose latest release has the Asset; Nexus = page the player downloads it from by hand.
 # No source at all: shipped in this repository's mods\ (MIT-licensed mods)
 $sources = @{
-    vins   = @{ Pattern = 'ELDEN VINS NIGHTREIGN-*.zip'; File = 'ELDEN VINS NIGHTREIGN-287-1-5-2-1769916199.zip'; Drive = '1YiEEjlp4MALZNu2AI7Vr5QBgkX6qhc-I'
-                Sha256 = '945073D5645BABB68BED8CD514356C05787C19378D9FD2A6C2997706BAEBEF60'
+    vins   = @{ Has = 'ELDEN VINS NIGHTREIGN/mod/regulation.bin'; File = 'ELDEN VINS NIGHTREIGN-287-1-5-2-1769916199.zip'
+                Drive = '1YiEEjlp4MALZNu2AI7Vr5QBgkX6qhc-I'; Sha256 = '945073D5645BABB68BED8CD514356C05787C19378D9FD2A6C2997706BAEBEF60'
                 Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/287?tab=files'; Title = 'ELDEN VINS NIGHTREIGN' }
-    # Built by tools\merge_evn_ru.py for one Vins version, so the name is exact
-    evn    = @{ Pattern = 'EVN Russian for ELDEN VINS 1-5-2.zip'; File = 'EVN Russian for ELDEN VINS 1-5-2.zip'; Drive = '1deIupoipWD3NAwmBIRyUL7GN_1V5o9Pr'
-                Sha256 = '8CAB8AE94846B87FB5B7D97D5E6D66ACD5AC54B1CD1B533B8A7EBEE0BD92D8E1' }
-    coop   = @{ Pattern = 'Seamless Co-op (Nightreign)-*.zip'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/3?tab=files'; Title = 'Seamless Co-op' }
-    coopru = @{ Pattern = 'Russian Translation of Seamless Co-op*.zip'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/775?tab=files'
+    # Built by tools\merge_evn_ru.py from one Vins zip, whose size is VinsSize: it fits no other Vins version
+    evn    = @{ Pattern = 'EVN Russian for ELDEN VINS 1-5-2.zip'; File = 'EVN Russian for ELDEN VINS 1-5-2.zip'; VinsSize = 6298366949
+                Drive = '1deIupoipWD3NAwmBIRyUL7GN_1V5o9Pr'; Sha256 = '8CAB8AE94846B87FB5B7D97D5E6D66ACD5AC54B1CD1B533B8A7EBEE0BD92D8E1' }
+    coop   = @{ Has = 'SeamlessCoop/nrsc.dll'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/3?tab=files'; Title = 'Seamless Co-op' }
+    # YUINEXUS: message keys only the Nightreign Seamless has
+    coopru = @{ Has = 'russian.json'; Text = 'YUINEXUS'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/775?tab=files'
                 Title = 'Russian Translation of Seamless Co-op' }
-    fps    = @{ Pattern = 'UnlockTheFps-*.zip' }
-    fov    = @{ Pattern = 'AdjustTheFov-*.zip' }
-    mgr    = @{ Pattern = 'Me3_Manager_*_Windows.zip'; GitHub = '2Pz/me3-manager' }
+    fps    = @{ Has = 'UnlockTheFps.dll' }
+    fov    = @{ Has = 'AdjustTheFov.dll' }
+    mgr    = @{ Has = 'Me3_Manager_*/Me3_Manager.exe'; GitHub = '2Pz/me3-manager'; Asset = 'Me3_Manager_*_Windows.zip' }
 }
 
 # Mods to pick from. Archives = keys of $sources; Needs = mod that has to be on as well
@@ -263,11 +267,29 @@ function Get-DownloadsDir {
     (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path
 }
 
-# Newest finished file matching the pattern (Firefox keeps an empty placeholder next to a .part while downloading)
-function Find-Newest($dir, $pattern) {
-    Get-ChildItem -LiteralPath $dir -Filter $pattern -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Length -gt 0 -and -not (Test-Path -LiteralPath "$($_.FullName).part") } |
-        Sort-Object LastWriteTime | Select-Object -Last 1 | ForEach-Object FullName
+# The zip has an entry matching the name (-like) whose text contains $text if given; an unreadable zip has none
+function Test-ZipEntry($path, $name, $text) {
+    try { $z = [IO.Compression.ZipFile]::OpenRead($path) } catch { return $false }
+    try {
+        foreach ($e in $z.Entries) {
+            if (($e.FullName -replace '\\', '/') -notlike $name) { continue }
+            if (-not $text) { return $true }
+            $r = New-Object IO.StreamReader($e.Open())
+            try { if ($r.ReadToEnd().Contains($text)) { return $true } } finally { $r.Dispose() }
+        }
+        $false
+    } finally { $z.Dispose() }
+}
+
+# Newest finished archive of this source in the folder (Firefox keeps an empty placeholder next to a .part while
+# downloading). Opening a zip reads only its directory, so even the 6 GB one is checked at once
+function Find-Archive($dir, $key) {
+    $s = $sources[$key]
+    $files = Get-ChildItem -LiteralPath $dir -Filter $(if ($s.Pattern) { $s.Pattern } else { '*.zip' }) -File -ErrorAction SilentlyContinue
+    foreach ($f in $files | Sort-Object LastWriteTime -Descending) {
+        if ($f.Length -eq 0 -or (Test-Path -LiteralPath "$($f.FullName).part")) { continue }
+        if (-not $s.Has -or (Test-ZipEntry $f.FullName $s.Has $s.Text)) { return $f.FullName }
+    }
 }
 
 # curl ships with Windows 10+, shows progress and resumes an interrupted download from the .part file (-C -)
@@ -305,10 +327,10 @@ function Save-Drive($id, $dest, $sha) {
 }
 
 # Latest release asset matching the pattern, checked against the SHA-256 GitHub publishes for it
-function Save-GitHub($repo, $pattern, $dir) {
+function Save-GitHub($repo, $asset, $dir) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $a = @((Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest" -TimeoutSec 20).assets | Where-Object { $_.name -like $pattern })[0]
-    if (-not $a) { throw "В последнем релизе $repo на GitHub нет файла $pattern." }
+    $a = @((Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest" -TimeoutSec 20).assets | Where-Object { $_.name -like $asset })[0]
+    if (-not $a) { throw "В последнем релизе $repo на GitHub нет файла $asset." }
     $dest = Join-Path $dir $a.name
     Save-Url $a.browser_download_url $dest ("$($a.digest)" -replace '^sha256:', '')
     $dest
@@ -318,9 +340,9 @@ function Save-GitHub($repo, $pattern, $dir) {
 # Nexus by hand, or (no Nexus page) when it cannot be had at all
 function Get-Archive($key) {
     $s = $sources[$key]
-    $have = Find-Newest $src $s.Pattern
+    $have = Find-Archive $src $key
     if ($have) { return $have }
-    $dl = Find-Newest (Get-DownloadsDir) $s.Pattern
+    $dl = Find-Archive (Get-DownloadsDir) $key
     if ($dl) {
         $dest = Join-Path $src (Split-Path -Leaf $dl)
         try { New-Item -ItemType HardLink -Path $dest -Value $dl | Out-Null } catch { Copy-Item -LiteralPath $dl $dest }
@@ -331,8 +353,8 @@ function Get-Archive($key) {
         try { Save-Drive $s.Drive (Join-Path $src $s.File) $s.Sha256; return Join-Path $src $s.File }
         catch { Write-Host "Google Drive: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
-    if ($s.GitHub) { Write-Host "Качаю $($s.Pattern) с GitHub..."; return Save-GitHub $s.GitHub $s.Pattern $src }
-    if (-not $s.Nexus -and -not $s.ContainsKey('Drive')) { throw "Нет архива '$($s.Pattern)' в папке $src" }   # shipped one
+    if ($s.GitHub) { Write-Host "Качаю $($s.Asset) с GitHub..."; return Save-GitHub $s.GitHub $s.Asset $src }
+    if (-not $s.Nexus -and -not $s.ContainsKey('Drive')) { throw "Нет архива с $($s.Has) в папке $src" }   # shipped one
 }
 
 # Nexus only lets logged-in people download, so the player does it in the browser; the archives are picked up
@@ -344,7 +366,7 @@ function Wait-Nexus($keys) {
     Write-Host 'Их страницы открыты в браузере: Files > Manual download > Slow download.'
     Write-Host "Установщик сам заберёт архивы из папки «Загрузки» ($dl) или из $src."
     Write-Host 'Жду файлы... Esc = отмена' -ForegroundColor DarkGray
-    while (@($keys | Where-Object { -not (Find-Newest $src $sources[$_].Pattern) -and -not (Find-Newest $dl $sources[$_].Pattern) }).Count) {
+    while (@($keys | Where-Object { -not (Find-Archive $src $_) -and -not (Find-Archive $dl $_) }).Count) {
         if ([Console]::KeyAvailable -and [Console]::ReadKey($true).Key -eq 'Escape') { throw 'Установка отменена.' }
         Start-Sleep -Milliseconds 1500
     }
@@ -378,6 +400,7 @@ function Expand-Zip($zip, $dest, $member, $strip = 0) {
 # What Vins' OPEN-THIS-TO-INSTALL-SKINS.bat does (X.partsbnd.dcx -> X_l.partsbnd.dcx), but with hard links
 # instead of 4.5 GB of copies
 function Add-SkinLinks($parts) {
+    if (-not (Test-Path -LiteralPath $parts)) { return }
     foreach ($f in @(Get-ChildItem -LiteralPath $parts -Recurse -File -Filter '*.partsbnd.dcx')) {
         if ($f.Name -like '*_l.partsbnd.dcx') { continue }
         $dst = Join-Path $f.DirectoryName ($f.Name -replace '\.partsbnd\.dcx$', '_l.partsbnd.dcx')
@@ -417,13 +440,10 @@ function Install-Mods($mods) {
     $asked = @($mods)
     $mods = @($catalog | Where-Object { $asked -contains $_.Id -and -not (Get-Blocker $_ $asked) } | ForEach-Object Id)
     $zip = Get-Archives $mods
-    if ($mods -contains 'evn') {
-        # The patch carries whole Vins text files: on another Vins version it would replace newer Vins texts
-        $ver = [regex]::Match((Split-Path -Leaf $zip.vins), '^ELDEN VINS NIGHTREIGN-\d+-(.+)-\d+\.zip$').Groups[1].Value
-        if (-not $zip.evn -or (Split-Path -Leaf $zip.evn) -ne "EVN Russian for ELDEN VINS $ver.zip") {
-            Write-Host "Русский перевод не подходит к Elden Vins $ver или не скачался: часть текстов Vins будет на английском." -ForegroundColor Yellow
-            $mods = @($mods | Where-Object { $_ -ne 'evn' })
-        }
+    # The patch carries whole Vins text files: on another Vins version it would replace newer Vins texts
+    if ($mods -contains 'evn' -and (-not $zip.evn -or (Get-Item -LiteralPath $zip.vins).Length -ne $sources.evn.VinsSize)) {
+        Write-Host 'Русский перевод не подходит к этой версии Elden Vins или не скачался: часть текстов Vins будет на английском.' -ForegroundColor Yellow
+        $mods = @($mods | Where-Object { $_ -ne 'evn' })
     }
     Install-Me3
 

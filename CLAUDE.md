@@ -20,7 +20,10 @@ only `install.bat` from the latest release. UI style follows H0oxy's DS2 Seamles
 
 ## Where the archives come from (`$sources` in install.ps1)
 
-- me3, ME3 Manager: GitHub releases, checked against the API's sha256 digest.
+- me3: the portable `me3-windows-amd64.zip` from its GitHub release, `bin\` unpacked into
+  `%LOCALAPPDATA%\garyttierney\me3` (where ME3 Manager puts it). Found there, via the official installer's
+  `HKCU\Software\garyttierney\me3\Install_Dir`, or on PATH.
+- ME3 Manager: GitHub release. Every GitHub download is checked against the API's sha256 digest.
 - Elden Vins and the Russian patch: the owner's Google Drive (file id + SHA-256 pinned); empty id or a Drive failure
   falls back to Nexus for Vins and skips the patch.
 - Seamless Co-op and its translation: Nexus by hand (redistribution forbidden); picked up from the Downloads folder.

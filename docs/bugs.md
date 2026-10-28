@@ -69,6 +69,19 @@
   and the merged Russian patch on Google Drive and took responsibility for the authors' permission.
 - The Seamless Russian translation is Nexus mod 775 (confirmed by the owner).
 
+## me3 not found after its official installer
+
+- Symptom: on a player's PC the pack asked to install me3 on every run, though me3 was installed (into the pack's
+  folder, `S:\games\eldanght\me3`); the shortcuts were never created.
+- Cause: `Find-Me3` looked only in `%LOCALAPPDATA%\garyttierney\me3` (ME3 Manager's portable install) and on the
+  process PATH. The official installer (`installer.nsi` in the me3 repo, v0.13.0) defaults to
+  `%LOCALAPPDATA%\Programs\garyttierney\me3`, shows a folder page, records the folder in
+  `HKCU\Software\garyttierney\me3\Install_Dir` and adds `bin` to the user PATH, which a running process does not see.
+- Fix: `Find-Me3` also reads `Install_Dir`. `Install-Me3` no longer runs the installer: it unpacks `bin\` of the
+  release's `me3-windows-amd64.zip` (same three files as ME3 Manager's install) into `%LOCALAPPDATA%\garyttierney\me3`.
+- Verified: with a temporary `Install_Dir` pointing at a fake me3, `Find-Me3` returned it (key removed afterwards);
+  `Install-Me3` into an empty LOCALAPPDATA downloaded the zip, and the unpacked `me3.exe --version` printed 0.13.0.
+
 ## Nexus names browser downloads its own way
 
 - Symptom: a player downloaded Seamless Co-op and its translation from Nexus, even put them into `mods\`, and the

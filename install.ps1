@@ -68,9 +68,11 @@ $settingsTable = @(
     ) }
 )
 
+# ME3 Manager installs me3 portable into LOCALAPPDATA. The official installer lets the player pick the folder and
+# records it in the registry; it also adds me3 to PATH, which this already running process does not see
 function Find-Me3 {
-    $p = "$env:LOCALAPPDATA\garyttierney\me3\bin\me3.exe"
-    if (Test-Path -LiteralPath $p) { return $p }
+    $dirs = "$env:LOCALAPPDATA\garyttierney\me3", (Get-ItemProperty 'HKCU:\Software\garyttierney\me3' -ErrorAction SilentlyContinue).Install_Dir
+    foreach ($d in $dirs) { if ($d -and (Test-Path -LiteralPath "$d\bin\me3.exe")) { return "$d\bin\me3.exe" } }
     (Get-Command me3.exe -ErrorAction SilentlyContinue).Source
 }
 
@@ -409,14 +411,13 @@ function Add-SkinLinks($parts) {
     }
 }
 
+# me3 goes where ME3 Manager puts it, from the same portable release zip: no installer window asking for a folder
 function Install-Me3 {
     if (Find-Me3) { return }
-    $c = Select-Option 'Для запуска модов нужен Mod Engine 3 (me3), он не найден. Скачать официальный установщик с GitHub?' @('Да, скачать и установить', 'Нет')
-    if ($c -ne 0) { Write-Host 'Без me3 игра с модами не запустится. Запусти install.bat ещё раз, когда будешь готов.' -ForegroundColor Yellow; return }
-    Write-Host 'Качаю установщик me3...'
-    $exe = Save-GitHub 'garyttierney/me3' 'me3_installer.exe' $env:TEMP
-    Start-Process $exe -Wait
-    Remove-Item -LiteralPath $exe
+    Write-Host 'Ставлю Mod Engine 3 (me3)...'
+    $zip = Save-GitHub 'garyttierney/me3' 'me3-windows-amd64.zip' $env:TEMP
+    Expand-Zip $zip "$env:LOCALAPPDATA\garyttierney\me3" 'bin'
+    Remove-Item -LiteralPath $zip
 }
 
 function New-Profile($online, $natives, $package) {

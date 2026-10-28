@@ -16,11 +16,11 @@ $desktop = if ($global:TestDesktop) { $global:TestDesktop } else { [Environment]
 # GitHub = owner/repo whose latest release has it; Nexus = page the player downloads it from by hand.
 # No source at all: shipped in this repository's mods\ (MIT-licensed mods)
 $sources = @{
-    vins   = @{ Pattern = 'ELDEN VINS NIGHTREIGN-*.zip'; File = 'ELDEN VINS NIGHTREIGN-287-1-5-2-1769916199.zip'; Drive = ''
+    vins   = @{ Pattern = 'ELDEN VINS NIGHTREIGN-*.zip'; File = 'ELDEN VINS NIGHTREIGN-287-1-5-2-1769916199.zip'; Drive = '1YiEEjlp4MALZNu2AI7Vr5QBgkX6qhc-I'
                 Sha256 = '945073D5645BABB68BED8CD514356C05787C19378D9FD2A6C2997706BAEBEF60'
                 Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/287?tab=files'; Title = 'ELDEN VINS NIGHTREIGN' }
     # Built by tools\merge_evn_ru.py for one Vins version, so the name is exact
-    evn    = @{ Pattern = 'EVN Russian for ELDEN VINS 1-5-2.zip'; File = 'EVN Russian for ELDEN VINS 1-5-2.zip'; Drive = ''
+    evn    = @{ Pattern = 'EVN Russian for ELDEN VINS 1-5-2.zip'; File = 'EVN Russian for ELDEN VINS 1-5-2.zip'; Drive = '1deIupoipWD3NAwmBIRyUL7GN_1V5o9Pr'
                 Sha256 = '8CAB8AE94846B87FB5B7D97D5E6D66ACD5AC54B1CD1B533B8A7EBEE0BD92D8E1' }
     coop   = @{ Pattern = 'Seamless Co-op (Nightreign)-*.zip'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/3?tab=files'; Title = 'Seamless Co-op' }
     coopru = @{ Pattern = 'Russian Translation of Seamless Co-op*.zip'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/775?tab=files'

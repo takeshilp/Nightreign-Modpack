@@ -75,7 +75,9 @@
   `confirm`, `uuid`) make the real link on `drive.usercontent.google.com/download`. Small files come straight away.
 - A page without the form means the download quota is exceeded or the file is not shared by link; Vins then falls
   back to Nexus.
-- Not verified yet: no Drive upload existed when this was written.
+- Verified 2026-10-28 with the owner's uploads: the Vins zip (5.9 GB) came through the warning page, 886 s at
+  6.8 MB/s, SHA-256 matched; the 0.4 MB patch came straight away. While curl writes, Explorer and Get-ChildItem show
+  the `.part` as 0 bytes; open the file to see its real size.
 
 ## Windows PowerShell 5.1 and script encoding
 

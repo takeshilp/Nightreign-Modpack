@@ -59,7 +59,7 @@ $settingsTable = @(
         'limit|int|Лимит кадров'
     ) }
     @{ Mod = 'Adjust The FOV'; File = 'AdjustTheFov\config.ini'; Items = @(
-        'value|num|Угол обзора (FOV)|в игре по умолчанию 60'
+        'value|num|Угол обзора (FOV)|в игре по умолчанию 48, больше = шире'
     ) }
     @{ Mod = 'Elden Vins: онлайн-сервер'; File = 'vins\dll\cl_server_redirector.ini'; Items = @(
         'CL_SERVER_URL|text|Адрес сервера'
@@ -76,9 +76,10 @@ function Find-Me3 {
     (Get-Command me3.exe -ErrorAction SilentlyContinue).Source
 }
 
-# Only for the shortcut icon: me3 finds the game by itself
+# Test seam: $global:TestGameDir replaces the game folder
 function Find-GameExe {
-    $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -ErrorAction SilentlyContinue).SteamPath
+    if ($global:TestGameDir) { return "$global:TestGameDir\nightreign.exe" }
+    $steam =(Get-ItemProperty 'HKCU:\Software\Valve\Steam' -ErrorAction SilentlyContinue).SteamPath
     if (-not $steam) { return }
     $libs = @($steam) + @(Select-String -Path "$steam\steamapps\libraryfolders.vdf" -Pattern '"path"\s+"(.+)"' -ErrorAction SilentlyContinue |
         ForEach-Object { $_.Matches[0].Groups[1].Value -replace '\\\\', '\' })
@@ -431,6 +432,33 @@ function New-Profile($online, $natives, $package) {
     $t
 }
 
+# Unlock The FPS and Adjust The FOV read config.ini from "mods\<dll name>" relative to the game's working folder,
+# which me3 sets to the game folder. Junctions there point at their folders in installed\, so the settings stay in
+# one place (and the mods' log.txt lands next to them). Only junctions are touched, never a real folder
+$cwdMods = @{ fps = 'UnlockTheFps'; fov = 'AdjustTheFov' }
+function Update-ModLinks($mods) {
+    $exe = Find-GameExe
+    if (-not $exe) {
+        if ($mods | Where-Object { $cwdMods[$_] }) { Write-Host 'Не нашёл папку игры: настройки Unlock The FPS и Adjust The FOV не применятся.' -ForegroundColor Yellow }
+        return
+    }
+    $dir = Join-Path (Split-Path -Parent $exe) 'mods'
+    foreach ($id in $cwdMods.Keys) {
+        $link = Join-Path $dir $cwdMods[$id]
+        $item = Get-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue
+        if ($item -and -not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            Write-Host "В $dir есть своя папка $($cwdMods[$id]): мод возьмёт настройки из неё, а не из settings.bat." -ForegroundColor Yellow
+            continue
+        }
+        if ($item) { [IO.Directory]::Delete($link) }   # removes the junction only, not the folder it points at
+        if ($mods -contains $id) {
+            [IO.Directory]::CreateDirectory($dir) | Out-Null
+            New-Item -ItemType Junction -Path $link -Value (Join-Path $root $cwdMods[$id]) | Out-Null
+        }
+    }
+    if ((Test-Path -LiteralPath $dir) -and -not (Get-ChildItem -LiteralPath $dir -Force)) { Remove-Item -LiteralPath $dir }
+}
+
 function Remove-OurShortcuts {
     $sh = New-Object -ComObject WScript.Shell
     Get-ChildItem -LiteralPath $desktop -Filter '*.lnk' -ErrorAction SilentlyContinue |
@@ -472,6 +500,7 @@ function Install-Mods($mods) {
         $p = Join-Path $root $f
         if (Test-Path -LiteralPath $p) { [IO.File]::WriteAllText($p, (Merge-Ini ([IO.File]::ReadAllText($p)) $old[$f])) }
     }
+    Update-ModLinks $mods
 
     # One me3 profile and desktop shortcut per way to play. Vins' own profile is not used: it loads nighter.dll
     # (missing from the archive) and NightreignFPSFOV.dll (same job as Unlock The FPS / Adjust The FOV)
@@ -509,6 +538,7 @@ function Install-Mods($mods) {
 
 function Uninstall-Mods {
     Remove-OurShortcuts
+    Update-ModLinks @()
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
     Write-Host "`nМоды, их настройки и ярлыки удалены. Сохранения в $env:APPDATA\Nightreign и сама игра не тронуты."
     Write-Host "Скачанные архивы остались в $src, Mod Engine 3 удаляется через «Установленные приложения» Windows."

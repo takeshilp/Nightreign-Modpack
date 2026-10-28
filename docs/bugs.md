@@ -69,6 +69,19 @@
   and the merged Russian patch on Google Drive and took responsibility for the authors' permission.
 - The Seamless Russian translation is Nexus mod 775 (confirmed by the owner).
 
+## Unlock The FPS / Adjust The FOV ignore their config.ini under me3
+
+- Symptom: FPS limit 120 in settings, 200 in game; FOV changes did nothing.
+- Cause: both mods (Loukious' forks of techiew's mods, `ModUtils.h`) read `"mods\\" + <dll name> + "\\config.ini"`,
+  relative to the process working directory. me3's launcher starts the game with the working directory set to
+  the game folder (`crates/launcher/src/main.rs`: `args.exe.parent()`), where no `mods\` exists, so the mods used
+  their defaults: FPS limit 300, FOV 48 (the game's own). The ME3 Manager profile had the same problem.
+- Fix: `Update-ModLinks` puts junctions `<game>\mods\UnlockTheFps` and `<game>\mods\AdjustTheFov` pointing at the
+  folders in `installed\`; removed with the mod or the pack, real folders of that name are left alone, an empty
+  `mods\` is deleted. The FOV hint now says the game default is 48 (the shipped config's 60 is already wider).
+- Verified: test with a fake game folder. In game: after a launch, `installed\UnlockTheFps\log.txt` should appear
+  (written through the junction) with `FPS limit: <value>`.
+
 ## me3 not found after its official installer
 
 - Symptom: on a player's PC the pack asked to install me3 on every run, though me3 was installed (into the pack's

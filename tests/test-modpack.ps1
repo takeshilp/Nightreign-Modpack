@@ -23,6 +23,12 @@ $appData = $env:LOCALAPPDATA
 $env:LOCALAPPDATA = "$t\appdata"
 $global:TestDesktop = $desk
 $global:TestDownloads = $dl
+$game = "$t\game"; $global:TestGameDir = $game
+New-Item -ItemType File -Force "$game\mods\SomeoneElse\x.txt" | Out-Null   # another tool's folder: must survive
+function Linked($name) {   # a junction in the game's mods\ that leads to the installed copy
+    $i = Get-Item -LiteralPath "$game\mods\$name" -Force -ErrorAction SilentlyContinue
+    $i -and ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) -and (Text "$game\mods\$name\config.ini") -eq (Text "$root\$name\config.ini")
+}
 try {
     $vinsZip = 'ELDEN VINS NIGHTREIGN-287-1-5-2-1.zip'
     Fake "$pack\mods" $vinsZip @{
@@ -74,6 +80,7 @@ try {
     Check (-not (Test-Path "$root\nrsc_launcher.exe") -and -not (Test-Path "$root\vins\OPEN-THIS-TO-INSTALL-SKINS.bat")) 'only mod folders extracted'
     Check ((Text "$root\vins\parts\wp_a_l.partsbnd.dcx") -eq 'skin-a' -and (Text "$root\vins\parts\sub\am_b_l.partsbnd.dcx") -eq 'skin-b') 'skin copies'
     Check ((Text $msg) -eq 'merged-ru') 'Vins Russian patch installed'
+    Check ((Linked 'UnlockTheFps') -and (Linked 'AdjustTheFov')) 'FPS/FOV configs reachable from the game folder'
     Check (Ini 'modpack.txt' 'mods = vins evn coop fps fov') 'marker'
     $coop = Text "$root\Seamless Co-op.me3"; $vins = Text "$root\Elden Vins online.me3"
     Check ($coop -match 'source = "vins"' -and $coop -match 'start_online = false' -and $coop -notmatch 'cl_server_redirector') 'seamless profile'
@@ -90,7 +97,7 @@ try {
     Pack -Settings only
     Check (Ini 'SeamlessCoop\nrsc_settings.ini' 'health_scaling = 150') 'int, invalid input rejected'
     Check (Ini 'SeamlessCoop\nrsc_settings.ini' 'save_file_extension = vins') 'ext, invalid input rejected'
-    Check (Ini 'UnlockTheFps\config.ini' 'limit = 144') 'fps limit'
+    Check ((Ini 'UnlockTheFps\config.ini' 'limit = 144') -and (Text "$game\mods\UnlockTheFps\config.ini") -match 'limit = 144') 'fps limit, seen by the mod'
     Check (Ini 'AdjustTheFov\config.ini' 'value = 75.5') 'num with a comma'
     Check (Ini 'vins\dll\cl_server_redirector.ini' 'CL_CUSTOM_SHARD_NAME=FRIENDS') 'optional key switched on'
     Check (Ini 'vins\dll\cl_server_redirector.ini' 'CL_USE_ALT_SAVE=false') 'true/false toggled'
@@ -101,6 +108,7 @@ try {
     Check (Ini 'modpack.txt' 'mods = vins coop fps') 'marker after reinstall'
     Check ((Text $msg) -eq 'vins-text') 'switched-off Russian patch gives the Vins text back'
     Check (-not (Test-Path "$root\AdjustTheFov.dll") -and (Text "$root\Seamless Co-op.me3") -notmatch 'AdjustTheFov') 'switched-off FOV removed'
+    Check ((Linked 'UnlockTheFps') -and -not (Test-Path -LiteralPath "$game\mods\AdjustTheFov")) 'FOV link removed, FPS link survives the rebuild'
     Check ((Ini 'UnlockTheFps\config.ini' 'limit = 144') -and (Ini 'SeamlessCoop\nrsc_settings.ini' 'health_scaling = 150')) 'settings kept'
     Check ((Ini 'vins\dll\cl_server_redirector.ini' 'CL_CUSTOM_SHARD_NAME=FRIENDS') -and (Ini 'vins\dll\cl_server_redirector.ini' 'CL_USE_ALT_SAVE=false')) 'server settings kept'
 
@@ -109,6 +117,8 @@ try {
     Check (Ini 'modpack.txt' 'mods = coop') 'patch without Vins dropped'
     Check (-not (Test-Path "$root\vins") -and (Text "$root\Seamless Co-op.me3") -notmatch 'packages') 'no Vins package'
     Check ((Test-Path -LiteralPath $coopLnk) -and -not (Test-Path -LiteralPath $vinsLnk)) 'server shortcut removed'
+    Check (-not (Test-Path -LiteralPath "$game\mods\UnlockTheFps") -and (Test-Path "$game\mods\SomeoneElse\x.txt")) 'links gone, other folders kept'
+    Remove-Item -LiteralPath "$game\mods\SomeoneElse" -Recurse
     # A newer Vins (another size) as Nexus names it
     Fake "$pack\mods" 'ELDEN VINS NIGHTREIGN 287 1.6.0 2026-11-01T10-00Z abc.zip' @{
         'ELDEN VINS NIGHTREIGN\mod\regulation.bin' = 'params 1.6'; 'ELDEN VINS NIGHTREIGN\mod\msg\rusru\item_dlc01.msgbnd.dcx' = 'vins-text'
@@ -116,6 +126,7 @@ try {
     (Get-Item -LiteralPath "$pack\mods\ELDEN VINS NIGHTREIGN 287 1.6.0 2026-11-01T10-00Z abc.zip").LastWriteTime = (Get-Date).AddMinutes(1)
     Pack -Mods 'vins,evn' -Settings skip
     Check ((Ini 'modpack.txt' 'mods = vins') -and (Text $msg) -eq 'vins-text') 'patch for another Vins version skipped'
+    Check (-not (Test-Path -LiteralPath "$game\mods")) 'empty mods folder removed from the game folder'
 
     # 5. Remove everything through the menu: installed mods, settings and shortcuts go, the archives stay
     Keys DownArrow DownArrow Enter DownArrow Enter
@@ -128,6 +139,6 @@ try {
     Write-Host 'OK' -ForegroundColor Green
 } finally {
     $env:LOCALAPPDATA = $appData
-    Remove-Variable TestKeys, TestDesktop, TestDownloads -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable TestKeys, TestDesktop, TestDownloads, TestGameDir -Scope Global -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue
 }

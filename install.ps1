@@ -8,22 +8,23 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $src = Join-Path $PSScriptRoot 'mods'          # mod archives: shipped, downloaded or picked up from Downloads
 $root = Join-Path $PSScriptRoot 'installed'    # everything the pack installs; each install rebuilds it from scratch
 $marker = Join-Path $root 'modpack.txt'        # which mods are installed
+$backup = Join-Path $PSScriptRoot 'settings-backup'   # settings ini copies while installed\ is rebuilt
 $nrsc = 'SeamlessCoop/nrsc.dll'
 # Test seams: $global:TestDesktop and $global:TestDownloads replace the real folders
 $desktop = if ($global:TestDesktop) { $global:TestDesktop } else { [Environment]::GetFolderPath('Desktop') }
 
-# Where each archive comes from. Archives in mods\ or Downloads are recognised by what is inside (Has = entry name,
-# -like; Text = a string that entry must contain): Nexus names browser downloads its own way. Pattern = exact file
-# name instead, for the pack's own patch. The newest match wins.
-# Drive = Google Drive file id of the pack owner's upload, saved as File and checked against Sha256 (empty: use Nexus);
-# GitHub = owner/repo whose latest release has the Asset; Nexus = page the player downloads it from by hand.
+# Where each archive comes from. File + Drive + Sha256 = the pack owner's upload to Google Drive, pinned: it is taken
+# first, so an update on Drive reaches everyone. Otherwise archives in mods\ or Downloads are recognised by what is
+# inside (Has = entry name, -like; Text = a string that entry must contain), since Nexus names browser downloads its
+# own way, and the newest match wins; without Has only the exact File counts. GitHub = owner/repo whose latest
+# release has the Asset; Nexus = page the player downloads it from by hand.
 # No source at all: shipped in this repository's mods\ (MIT-licensed mods)
 $sources = @{
     vins   = @{ Has = 'ELDEN VINS NIGHTREIGN/mod/regulation.bin'; File = 'ELDEN VINS NIGHTREIGN-287-1-5-2-1769916199.zip'
                 Drive = '1YiEEjlp4MALZNu2AI7Vr5QBgkX6qhc-I'; Sha256 = '945073D5645BABB68BED8CD514356C05787C19378D9FD2A6C2997706BAEBEF60'
                 Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/287?tab=files'; Title = 'ELDEN VINS NIGHTREIGN' }
     # Built by tools\merge_evn_ru.py from one Vins zip, whose size is VinsSize: it fits no other Vins version
-    evn    = @{ Pattern = 'EVN Russian for ELDEN VINS 1-5-2.zip'; File = 'EVN Russian for ELDEN VINS 1-5-2.zip'; VinsSize = 6298366949
+    evn    = @{ File = 'EVN Russian for ELDEN VINS 1-5-2.zip'; VinsSize = 6298366949
                 Drive = '1deIupoipWD3NAwmBIRyUL7GN_1V5o9Pr'; Sha256 = '8CAB8AE94846B87FB5B7D97D5E6D66ACD5AC54B1CD1B533B8A7EBEE0BD92D8E1' }
     coop   = @{ Has = 'SeamlessCoop/nrsc.dll'; File = 'Seamless Co-op (Nightreign)-4199.zip'
                 Drive = '19prfPdo4dWrALVkMfX4j4j6vwS2J4ie2'; Sha256 = 'B5D3CBD3CEC5BA9D7C9FAF7C4E51C56A70E21120732C3F3B15E59DFBBD35ACE8'
@@ -133,7 +134,7 @@ function Get-Blocker($m, $mods) {
     if ($m.Needs -and $mods -notcontains $m.Needs) { "нужен $($byId[$m.Needs].Name)" }
 }
 
-# Mod checklist; returns the chosen ids, or $null when cancelled
+# Mod checklist; returns the chosen ids that can be installed (blocked ones left out), or $null when cancelled
 function Select-Mods($mods) {
     $sel = 0
     while ($true) {
@@ -154,7 +155,7 @@ function Select-Mods($mods) {
             'DownArrow' { $sel = ($sel + 1) % $rows.Count }
             { $_ -in 'Backspace', 'Escape' } { return $null }
             { $_ -in 'Enter', 'Spacebar' } {
-                if ($sel -eq $rows.Count - 1) { if ($key -eq 'Enter') { return , @($mods) } }
+                if ($sel -eq $rows.Count - 1) { if ($key -eq 'Enter') { return , @($mods | Where-Object { -not (Get-Blocker $byId[$_] $mods) }) } }
                 elseif (-not (Get-Blocker $catalog[$sel] $mods)) {
                     $id = $catalog[$sel].Id
                     if ($mods -contains $id) { $mods = @($mods | Where-Object { $_ -ne $id }) } else { $mods = @($mods) + $id }
@@ -292,7 +293,7 @@ function Test-ZipEntry($path, $name, $text) {
 # downloading). Opening a zip reads only its directory, so even the 6 GB one is checked at once
 function Find-Archive($dir, $key) {
     $s = $sources[$key]
-    $files = Get-ChildItem -LiteralPath $dir -Filter $(if ($s.Pattern) { $s.Pattern } else { '*.zip' }) -File -ErrorAction SilentlyContinue
+    $files = Get-ChildItem -LiteralPath $dir -Filter $(if ($s.Has) { '*.zip' } else { $s.File }) -File -ErrorAction SilentlyContinue
     foreach ($f in $files | Sort-Object LastWriteTime -Descending) {
         if ($f.Length -eq 0 -or (Test-Path -LiteralPath "$($f.FullName).part")) { continue }
         if (-not $s.Has -or (Test-ZipEntry $f.FullName $s.Has $s.Text)) { return $f.FullName }
@@ -343,23 +344,30 @@ function Save-GitHub($repo, $asset, $dir) {
     $dest
 }
 
-# Path of an archive in mods\, taken from Downloads or downloaded if needed; $null when it has to come from
-# Nexus by hand, or (no Nexus page) when it cannot be had at all
-function Get-Archive($key) {
-    $s = $sources[$key]
+# Archive already in mods\, or in Downloads (linked into mods\), recognised by its contents; $null if none
+function Get-LocalArchive($key) {
     $have = Find-Archive $src $key
     if ($have) { return $have }
     $dl = Find-Archive (Get-DownloadsDir) $key
-    if ($dl) {
-        $dest = Join-Path $src (Split-Path -Leaf $dl)
-        try { New-Item -ItemType HardLink -Path $dest -Value $dl | Out-Null } catch { Copy-Item -LiteralPath $dl $dest }
-        return $dest
-    }
+    if (-not $dl) { return }
+    $dest = Join-Path $src (Split-Path -Leaf $dl)
+    try { New-Item -ItemType HardLink -Path $dest -Value $dl | Out-Null } catch { Copy-Item -LiteralPath $dl $dest }
+    $dest
+}
+
+# Path of an archive in mods\, downloaded or taken from Downloads if needed; $null when it has to come from
+# Nexus by hand, or (no Nexus page) when it cannot be had at all. The pinned Drive file goes first: an older copy
+# already here is used only when Drive fails
+function Get-Archive($key) {
+    $s = $sources[$key]
+    if ($s.File -and (Test-Path -LiteralPath (Join-Path $src $s.File))) { return Join-Path $src $s.File }
     if ($s.Drive) {
         Write-Host "Качаю $($s.File) с Google Drive..."
         try { Save-Drive $s.Drive (Join-Path $src $s.File) $s.Sha256; return Join-Path $src $s.File }
         catch { Write-Host "Google Drive: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
+    $have = Get-LocalArchive $key
+    if ($have) { return $have }
     if ($s.GitHub) { Write-Host "Качаю $($s.Asset) с GitHub..."; return Save-GitHub $s.GitHub $s.Asset $src }
     if (-not $s.Nexus -and -not $s.ContainsKey('Drive')) { throw "Нет архива с $($s.Has) в папке $src" }   # shipped one
 }
@@ -388,7 +396,7 @@ function Get-Archives($mods) {
         $p = Get-Archive $k
         if ($p) { $zip[$k] = $p } elseif ($sources[$k].Nexus) { $manual += $k }
     }
-    if ($manual) { Wait-Nexus $manual; foreach ($k in $manual) { $zip[$k] = Get-Archive $k } }
+    if ($manual) { Wait-Nexus $manual; foreach ($k in $manual) { $zip[$k] = Get-LocalArchive $k } }
     $zip
 }
 
@@ -454,13 +462,18 @@ function Update-ModLinks($mods) {
             Write-Host "В $dir есть своя папка $($cwdMods[$id]): мод возьмёт настройки из неё, а не из settings.bat." -ForegroundColor Yellow
             continue
         }
-        if ($item) { [IO.Directory]::Delete($link) }   # removes the junction only, not the folder it points at
-        if ($mods -contains $id) {
-            [IO.Directory]::CreateDirectory($dir) | Out-Null
-            New-Item -ItemType Junction -Path $link -Value (Join-Path $root $cwdMods[$id]) | Out-Null
+        # Not fatal: a game on exFAT (no junctions) or a write-protected game folder only costs these settings
+        try {
+            if ($item) { [IO.Directory]::Delete($link) }   # removes the junction only, not the folder it points at
+            if ($mods -contains $id) {
+                [IO.Directory]::CreateDirectory($dir) | Out-Null
+                New-Item -ItemType Junction -Path $link -Value (Join-Path $root $cwdMods[$id]) | Out-Null
+            }
+        } catch {
+            Write-Host "Не удалось связать $link с настройками ($($_.Exception.Message)): $($cwdMods[$id]) будет со стандартными." -ForegroundColor Yellow
         }
     }
-    if ((Test-Path -LiteralPath $dir) -and -not (Get-ChildItem -LiteralPath $dir -Force)) { Remove-Item -LiteralPath $dir }
+    if ((Test-Path -LiteralPath $dir -PathType Container) -and -not (Get-ChildItem -LiteralPath $dir -Force)) { Remove-Item -LiteralPath $dir }
 }
 
 function Remove-OurShortcuts {
@@ -481,10 +494,16 @@ function Install-Mods($mods) {
     Install-Me3
 
     # The folder is rebuilt from scratch: switched-off mods disappear, kept ones are repaired. Settings carry over
-    $old = @{}
+    # through copies on disk, which go only once the new folder is complete: a rebuild that stops half-way (full
+    # disk, locked file) loses nothing, and the next run picks the copies up. A copy that is already there is left
+    # alone: it comes from such a run, while the file in installed\ may already be a fresh default
     foreach ($s in $settingsTable) {
         $p = Join-Path $root $s.File
-        if (Test-Path -LiteralPath $p) { $old[$s.File] = [IO.File]::ReadAllText($p) }
+        $b = Join-Path $backup $s.File
+        if ((Test-Path -LiteralPath $p) -and -not (Test-Path -LiteralPath $b)) {
+            [IO.Directory]::CreateDirectory((Split-Path -Parent $b)) | Out-Null
+            Copy-Item -LiteralPath $p $b
+        }
     }
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
     foreach ($id in $mods) {
@@ -500,9 +519,10 @@ function Install-Mods($mods) {
             default { Expand-Zip $zip[$id] $root }
         }
     }
-    foreach ($f in $old.Keys) {
-        $p = Join-Path $root $f
-        if (Test-Path -LiteralPath $p) { [IO.File]::WriteAllText($p, (Merge-Ini ([IO.File]::ReadAllText($p)) $old[$f])) }
+    foreach ($s in $settingsTable) {
+        $p = Join-Path $root $s.File
+        $b = Join-Path $backup $s.File
+        if ((Test-Path -LiteralPath $p) -and (Test-Path -LiteralPath $b)) { [IO.File]::WriteAllText($p, (Merge-Ini ([IO.File]::ReadAllText($p)) ([IO.File]::ReadAllText($b)))) }
     }
     Update-ModLinks $mods
 
@@ -534,6 +554,7 @@ function Install-Mods($mods) {
         $lnk.Save()
     }
     [IO.File]::WriteAllText($marker, "mods = $($mods -join ' ')`r`n")
+    Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host 'Моды установлены.' -ForegroundColor Green
     if ($me3) { Write-Host "`nИграть: ярлыки $(($profiles.Values | ForEach-Object { "«$($_.Label)»" }) -join ' и ') на рабочем столе. Steam должен быть открыт." }
     Write-Host 'Кнопка «Играть» в Steam запускает игру без модов.'
@@ -550,7 +571,8 @@ function Uninstall-Mods {
 
 # ---------- main ----------
 
-if (Get-Process nightreign -ErrorAction SilentlyContinue) { throw 'Закрой игру и запусти ещё раз.' }
+# ME3 Manager runs from installed\, and a rebuild cannot delete its files while it is open
+if (Get-Process nightreign, Me3_Manager -ErrorAction SilentlyContinue) { throw 'Закрой игру и Mod Engine 3 Manager и запусти ещё раз.' }
 $installed = Test-Path -LiteralPath $marker
 if ($Settings -eq 'only') {
     if (-not $installed) { throw 'Моды ещё не установлены, сначала запусти install.bat.' }
@@ -577,7 +599,7 @@ if ($Mods) {
 } else {
     $modSel = if ($installed) { @((Get-IniValue ([IO.File]::ReadAllText($marker)) 'mods') -split ' ' | Where-Object { $_ }) } else { @($catalog | ForEach-Object Id) }
     $modSel = Select-Mods $modSel
-    if ($null -eq $modSel) { Write-Host 'Установка отменена.'; return }
+    if (-not $modSel) { Write-Host 'Установка отменена.'; return }   # cancelled, or nothing ticked
     Clear-Host
 }
 

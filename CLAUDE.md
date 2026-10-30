@@ -18,8 +18,11 @@ only `install.bat` from the latest release. UI style follows H0oxy's DS2 Seamles
 - `settings.bat`: `install.ps1 -Settings only`.
 - `mods/`: archives. In git only the MIT ones (UnlockTheFps, AdjustTheFov); locally also hard links to
   `D:\1Downloads\NexusMods` and the built Russian patch.
-- `installed/`: install output, rebuilt from scratch on every install; settings ini values carry over.
-- `tools/merge_evn_ru.py`: builds `mods/EVN Russian for ELDEN VINS <ver>.zip` (EVN lines merged into Vins' rusru `*_dlc01` files).
+- `installed/`: install output, rebuilt from scratch on every install; settings ini values carry over through
+  `settings-backup/` (kept until a rebuild completes).
+- `tools/merge_evn_ru.py`: builds `mods/EVN Russian for <Vins zip name>.zip` (EVN lines merged into Vins' rusru
+  `*_dlc01` files) and prints the `$sources` values. The 1.5.2 patch on Drive still has the older name
+  `EVN Russian for ELDEN VINS 1-5-2.zip`.
 - `tests/test-modpack.ps1`: end-to-end test on fake archives, no network; menus driven through `$global:TestKeys`.
 
 ## Where the archives come from (`$sources` in install.ps1)
@@ -29,20 +32,22 @@ only `install.bat` from the latest release. UI style follows H0oxy's DS2 Seamles
   `HKCU\Software\garyttierney\me3\Install_Dir`, or on PATH.
 - ME3 Manager: GitHub release. Every GitHub download is checked against the API's sha256 digest.
 - Elden Vins, the Russian patch, Seamless Co-op and its Russian translation: the owner's Google Drive (file id +
-  SHA-256 pinned); empty id or a Drive failure falls back to Nexus by hand, picked up from the Downloads folder
-  (the patch is skipped instead).
+  SHA-256 pinned). Order: the pinned `File` in `mods/`, then Drive, and only if Drive fails any matching archive
+  already in `mods/` or Downloads, then Nexus by hand (the patch is skipped instead). So an update on Drive reaches
+  everyone, even with an older copy lying in `mods/`.
 - Unlock The FPS / Adjust The FOV: shipped in the repo's `mods/`; the owner's Drive copies are byte-identical, unused.
 
 ## Commands
 
 - Test: `powershell -NoProfile -ExecutionPolicy Bypass -File tests\test-modpack.ps1` (prints `OK`; game must be closed).
-- Rebuild the Vins Russian patch after a Vins or EVN update: `python -I tools\merge_evn_ru.py` (needs the game installed for Oodle).
+- Rebuild the Vins Russian patch after a Vins or EVN update: `python -I tools\merge_evn_ru.py [<Vins zip> <EVN zip>]`
+  (needs the game installed for Oodle; without arguments takes the newest of each from `mods/`).
 
 ## Updating Elden Vins
 
-1. Put the new Vins zip into `mods/`, run `tools\merge_evn_ru.py`.
-2. Upload both zips to Google Drive (anyone with the link), put their file ids, names and SHA-256 into `$sources`,
-   and the new Vins zip's size into `evn.VinsSize`.
+1. Put the new Vins zip into `mods/`, run `tools\merge_evn_ru.py` (or pass both zips as arguments).
+2. Upload the Vins zip and the new patch to Google Drive (anyone with the link). Put the printed `File`, `Sha256`,
+   `VinsSize` and the two Drive file ids into `$sources`.
 3. Run the test, commit, push to `main`: players get it on their next `install.bat` run.
 
 ## Rules

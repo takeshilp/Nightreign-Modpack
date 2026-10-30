@@ -71,6 +71,27 @@
   4199 and 4319.
 - The Seamless Russian translation is Nexus mod 775 (confirmed by the owner).
 
+## Review 2026-10-31: updates, lost settings, junctions, the patch tool
+
+All verified by the test; each of the first three fixes was also undone once to see the test fail.
+
+- **Drive updates never reached players.** `Get-Archive` took any content match from `mods/` first, so after the
+  owner pinned a new Seamless or Vins on Drive, a player with the old zip in `mods/` kept it (and co-op needs equal
+  Seamless versions). Fix: pinned `File` in `mods/`, then Drive, then content matches. After a Nexus wait only the
+  local lookup (`Get-LocalArchive`) runs, so a failed Drive download is not retried.
+- **Settings lost when a rebuild stopped half-way** (ME3 Manager open, so a file in `installed/` is locked; full
+  disk): they lived only in memory. Fix: copies in `settings-backup/`, removed after a complete install; an existing
+  copy is never overwritten, since after such a run `installed/` may already hold fresh defaults. Me3_Manager is
+  refused like the game.
+- **No junction possible** (game on exFAT, write-protected game folder) aborted the install after unpacking, before
+  profiles, shortcuts and marker, on every run. Fix: a warning; those two mods keep default settings.
+- **The patch tool** only knew `ELDEN VINS NIGHTREIGN-*.zip` / `EVN Russian-*.zip`, not Nexus' browser download
+  names, and would quietly rebuild the patch from the old Vins zip. Fix: optional arguments, wider default globs
+  that skip its own output, output named after the Vins zip, `$sources` values printed. Verified: with and without
+  arguments the patch texts are byte-identical to the one on Drive.
+- Unticking everything (the Vins patch stays ticked but blocked without Vins) installed nothing and made a
+  "NIGHTREIGN с модами" shortcut; the checklist now returns only installable ids, and an empty choice cancels.
+
 ## Unlock The FPS / Adjust The FOV ignore their config.ini under me3
 
 - Symptom: FPS limit 120 in settings, 200 in game; FOV changes did nothing.

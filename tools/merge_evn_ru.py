@@ -3,12 +3,15 @@
 EVN Russian 1.3 ships pre-DLC base files (msg/rusru/item.msgbnd.dcx, menu.msgbnd.dcx). Vins 1.5.x and the
 post-DLC game use item_dlc01/menu_dlc01.msgbnd.dcx, which hold the whole text set. This copies EVN's Russian
 lines into Vins' rusru *_dlc01 files where Vins left English and the numbers in both texts agree, and writes
-mods/EVN Russian for ELDEN VINS <version>.zip, which install.ps1 installs over that Vins version.
+mods/EVN Russian for <Vins zip name>.zip, which install.ps1 installs over that Vins zip only. At the end it prints
+what goes into $sources in install.ps1.
 
-Run after a Vins or EVN update:  python -I tools/merge_evn_ru.py
+Run after a Vins or EVN update:  python -I tools/merge_evn_ru.py [<Elden Vins zip> <EVN Russian zip>]
+Without arguments it takes the newest of each from mods/ (Nexus' own names and browser download names alike).
 Needs the game installed: the Oodle codec comes from its oo2core_9_win64.dll.
 """
 import ctypes
+import hashlib
 import re
 import struct
 import sys
@@ -17,7 +20,7 @@ import zipfile
 from pathlib import Path
 
 MODS = Path(__file__).resolve().parent.parent / "mods"
-VINS_ZIP = re.compile(r"ELDEN VINS NIGHTREIGN-\d+-(.+)-\d+\.zip")  # same parse as install.ps1
+OUT_PREFIX = "EVN Russian for "  # this script's output, never an input
 CYR = re.compile("[Ѐ-ӿ]")
 TAGS = re.compile(r"<\?[^>]*\?>|<[^>]+>")
 WORD = re.compile(r"[A-Za-z]{3,}")
@@ -26,10 +29,18 @@ oodle = None
 
 
 def newest(pattern):
-    files = sorted(MODS.glob(pattern), key=lambda p: p.stat().st_mtime)  # newest wins, as in install.ps1
+    files = sorted((p for p in MODS.glob(pattern) if not p.name.startswith(OUT_PREFIX)), key=lambda p: p.stat().st_mtime)
     if not files:
         sys.exit(f"no {pattern} in {MODS}")
     return files[-1]
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(1 << 22):
+            h.update(chunk)
+    return h.hexdigest().upper()
 
 
 def load_oodle():
@@ -166,13 +177,12 @@ def merge(vins_dcx, evn_dcx):
 
 def main():
     global oodle
+    if len(sys.argv) not in (1, 3):
+        sys.exit("usage: python -I tools/merge_evn_ru.py [<Elden Vins zip> <EVN Russian zip>]")
+    vins_zip, evn_zip = (Path(a) for a in sys.argv[1:]) if len(sys.argv) == 3 else \
+        (newest("ELDEN VINS NIGHTREIGN*.zip"), newest("EVN Russian*.zip"))
     oodle = load_oodle()
-    vins_zip, evn_zip = newest("ELDEN VINS NIGHTREIGN-*.zip"), newest("EVN Russian-*.zip")
-    m = VINS_ZIP.fullmatch(vins_zip.name)
-    if not m:
-        sys.exit(f"cannot read the Vins version from {vins_zip.name}")
-    ver = m.group(1)
-    out = MODS / f"EVN Russian for ELDEN VINS {ver}.zip"
+    out = MODS / f"{OUT_PREFIX}{vins_zip.stem}.zip"
     tmp = out.with_suffix(".tmp")
     print(f"{vins_zip.name} + {evn_zip.name}")
     with zipfile.ZipFile(vins_zip) as vz, zipfile.ZipFile(evn_zip) as ez, \
@@ -184,6 +194,9 @@ def main():
             print(f"  {kind}: {used} lines translated, {skipped} kept in English (numbers differ)")
     tmp.replace(out)
     print(f"written {out}")
+    print("for $sources in install.ps1 (after uploading both zips to Google Drive):")
+    print(f"  vins: File = '{vins_zip.name}'; Sha256 = '{sha256(vins_zip)}'")
+    print(f"  evn:  File = '{out.name}'; VinsSize = {vins_zip.stat().st_size}; Sha256 = '{sha256(out)}'")
 
 
 if __name__ == "__main__":

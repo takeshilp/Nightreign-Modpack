@@ -46,16 +46,26 @@ try {
     Fake "$pack\mods" 'UnlockTheFps-25-1.zip' @{ 'UnlockTheFps.dll' = 'x'; 'UnlockTheFps\config.ini' = "[unlockthefps]`r`nlimit = 120" }
     Fake "$pack\mods" 'AdjustTheFov-119-1.zip' @{ 'AdjustTheFov.dll' = 'x'; 'AdjustTheFov\config.ini' = "[fov]`r`nvalue = 60" }
     Fake "$pack\mods" 'Me3_Manager_1.5.2_Windows.zip' @{ 'Me3_Manager_1.5.2\Me3_Manager.exe' = 'x' }
+    # Seamless under the name pinned in $sources (as a Drive download leaves it), and a newer copy of another version
+    # left in mods\ earlier: the pinned one must win, or an update on Drive never reaches the player
+    foreach ($z in @{ 'Seamless Co-op (Nightreign)-4199.zip' = 'pinned'; 'Seamless Co-op (Nightreign)-1234.zip' = 'other-version' }.GetEnumerator()) {
+        Fake "$pack\mods" $z.Key @{
+            'nrsc_launcher.exe' = 'x'; 'SeamlessCoop\nrsc.dll' = $z.Value; 'SeamlessCoop\locale\english.json' = '{}'
+            'SeamlessCoop\nrsc_settings.ini' = "[SCALING]`r`nhealth_scaling = 100`r`n;Use any alphanumeric characters (limit = 120)`r`nsave_file_extension = co2"
+        }
+    }
+    (Get-Item -LiteralPath "$pack\mods\Seamless Co-op (Nightreign)-1234.zip").LastWriteTime = (Get-Date).AddMinutes(1)
     # The patch fits only the Vins zip it was built from, recognised by size: point it at the fake one. The copy also
-    # drops the "close the game" check, so the test runs while the real game is open (it touches only temp folders)
+    # has no Drive ids (no network here) and no "close the game" check, so the test runs while the real game is open
+    # (it touches only temp folders)
     $ps1 = "$pack\install.ps1"
-    $code = [IO.File]::ReadAllText($ps1) -replace 'VinsSize = \d+', "VinsSize = $((Get-Item -LiteralPath "$pack\mods\$vinsZip").Length)" -replace '(?m)^if \(Get-Process nightreign.*$', ''
+    $code = [IO.File]::ReadAllText($ps1) -replace 'VinsSize = \d+', "VinsSize = $((Get-Item -LiteralPath "$pack\mods\$vinsZip").Length)" -replace "Drive = '[^']*'", "Drive = ''" -replace '(?m)^if \(Get-Process nightreign.*$', ''
     [IO.File]::WriteAllText($ps1, $code, (New-Object Text.UTF8Encoding $true))
     # Nexus-only mods named the way Nexus names browser downloads, a Firefox placeholder of an unfinished download,
     # and look-alikes that must not be taken: Elden Ring's Seamless Co-op and someone else's russian.json
     $coopZip = 'Nightreign Seamless Co-op v1.1.3 3 1.13 2026-07-02T16-30Z zFdpCI7GR.zip'; $ruZip = 'Russian 775 1 2026-07-23T19-42Z 60hdUAE7y.zip'
     Fake $dl $coopZip @{
-        'nrsc_launcher.exe' = 'x'; 'SeamlessCoop\nrsc.dll' = 'x'; 'SeamlessCoop\locale\english.json' = '{}'
+        'nrsc_launcher.exe' = 'x'; 'SeamlessCoop\nrsc.dll' = 'nexus'; 'SeamlessCoop\locale\english.json' = '{}'
         'SeamlessCoop\nrsc_settings.ini' = "[SCALING]`r`nhealth_scaling = 100`r`n;Use any alphanumeric characters (limit = 120)`r`nsave_file_extension = co2"
     }
     Fake $dl $ruZip @{ 'russian.json' = '{ "MODMESSAGE_YUINEXUSPAUSED": "Пауза" }' }
@@ -70,10 +80,10 @@ try {
     Keys DownArrow DownArrow DownArrow DownArrow DownArrow Enter DownArrow Enter
     Pack -Settings skip
     foreach ($p in "$root\SeamlessCoop\nrsc.dll", "$root\SeamlessCoop\locale\russian.json", "$root\UnlockTheFps.dll",
-        "$root\AdjustTheFov\config.ini", "$root\vins\dll\cl_server_redirector.ini", $coopLnk, $vinsLnk,
-        "$pack\mods\$coopZip", "$pack\mods\$ruZip") {
+        "$root\AdjustTheFov\config.ini", "$root\vins\dll\cl_server_redirector.ini", $coopLnk, $vinsLnk, "$pack\mods\$ruZip") {
         Check (Test-Path -LiteralPath $p) "missing $p"
     }
+    Check ((Text "$root\SeamlessCoop\nrsc.dll") -eq 'pinned' -and -not (Test-Path -LiteralPath "$pack\mods\$coopZip")) 'pinned file wins over a newer download'
     Check (-not (Test-Path -LiteralPath "$pack\mods\Nightreign Seamless Co-op v1.1.4.zip") -and -not (Test-Path -LiteralPath "$pack\mods\Seamless Co-op v2.0.1.zip")) 'unfinished download and look-alikes ignored'
     Check ((Text "$root\SeamlessCoop\locale\russian.json") -match 'YUINEXUS') 'the right russian.json'
     Check (-not (Test-Path "$root\Me3_Manager_1.5.2")) 'Manager switched off in the checklist'
@@ -112,6 +122,20 @@ try {
     Check ((Ini 'UnlockTheFps\config.ini' 'limit = 144') -and (Ini 'SeamlessCoop\nrsc_settings.ini' 'health_scaling = 150')) 'settings kept'
     Check ((Ini 'vins\dll\cl_server_redirector.ini' 'CL_CUSTOM_SHARD_NAME=FRIENDS') -and (Ini 'vins\dll\cl_server_redirector.ini' 'CL_USE_ALT_SAVE=false')) 'server settings kept'
 
+    # 3b. A rebuild that stops half-way (a broken archive: its directory reads fine, unpacking fails after Vins, Seamless
+    # and FPS are already back with default settings) loses no settings, and the next run puts them back
+    $broken = Copy-Item -LiteralPath "$pack\mods\AdjustTheFov-119-1.zip" "$pack\mods\AdjustTheFov-broken.zip" -PassThru
+    $fs = [IO.File]::OpenWrite($broken.FullName); $fs.Write([byte[]](0, 0, 0, 0), 0, 4); $fs.Dispose()   # no local header
+    $broken.LastWriteTime = (Get-Date).AddMinutes(2)
+    $failed = $false
+    try { Pack -Mods 'vins,coop,fps,fov' -Settings skip } catch { $failed = $true }
+    Check ($failed -and (Ini 'UnlockTheFps\config.ini' 'limit = 120')) 'the rebuild failed after unpacking defaults'
+    Remove-Item -LiteralPath $broken.FullName
+    Pack -Mods 'vins,coop,fps' -Settings skip
+    Check ((Ini 'UnlockTheFps\config.ini' 'limit = 144') -and (Ini 'SeamlessCoop\nrsc_settings.ini' 'health_scaling = 150') -and
+        (Ini 'vins\dll\cl_server_redirector.ini' 'CL_CUSTOM_SHARD_NAME=FRIENDS')) 'settings survive a failed rebuild'
+    Check (-not (Test-Path "$pack\settings-backup")) 'settings copies removed after a complete install'
+
     # 4. The Russian patch needs Vins, and only goes in for the Vins version it was built for
     Pack -Mods 'evn,coop' -Settings skip
     Check (Ini 'modpack.txt' 'mods = coop') 'patch without Vins dropped'
@@ -128,14 +152,26 @@ try {
     Check ((Ini 'modpack.txt' 'mods = vins') -and (Text $msg) -eq 'vins-text') 'patch for another Vins version skipped'
     Check (-not (Test-Path -LiteralPath "$game\mods")) 'empty mods folder removed from the game folder'
 
+    # 4b. No junction possible in the game folder (here "mods" is a file): a warning, the install still completes
+    $global:TestGameDir = "$t\game2"
+    New-Item -ItemType File -Force "$t\game2\mods" | Out-Null
+    Pack -Mods 'fps' -Settings skip
+    Check ((Ini 'modpack.txt' 'mods = fps') -and (Test-Path -LiteralPath "$desk\NIGHTREIGN с модами.lnk")) 'install completes without the junction'
+    $global:TestGameDir = $game
+
     # 5. Remove everything through the menu: installed mods, settings and shortcuts go, the archives stay
     Keys DownArrow DownArrow Enter DownArrow Enter
     Pack
     Check (-not (Test-Path $root) -and -not (Test-Path -LiteralPath $coopLnk)) 'removed'
-    Check ((Get-ChildItem "$pack\mods").Count -eq 8) 'archives kept'
+    Check ((Get-ChildItem "$pack\mods").Count -eq 9) 'archives kept'
     $err = $null
     try { Pack -Settings only } catch { $err = "$_" }
     Check ($err -match 'не установлены') 'settings without an installation'
+
+    # 6. Every box unticked (the Vins patch only blocked, still ticked): nothing to install, so nothing happens
+    Keys Enter DownArrow DownArrow Enter DownArrow Enter DownArrow Enter DownArrow Enter DownArrow Enter
+    Pack -Settings skip
+    Check (-not (Test-Path $root) -and -not (Get-ChildItem $desk -Filter '*.lnk')) 'empty choice cancels'
     Write-Host 'OK' -ForegroundColor Green
 } finally {
     $env:LOCALAPPDATA = $appData

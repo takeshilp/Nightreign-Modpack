@@ -7,8 +7,12 @@ only `install.bat` from the latest release. UI style follows H0oxy's DS2 Seamles
 
 ## Layout
 
-- `install.bat`: bootstrap (batch/PowerShell polyglot). Pulls `install.ps1`, `settings.bat`, `README.md`, `LICENSE`,
-  `licenses/` and `mods/` from the repo's `main` branch, then runs `install.ps1`. Skipped when `.git` is next to it.
+- `install.bat`: bootstrap (batch/PowerShell polyglot). Asks for the pack folder (folder dialog; a non-empty folder
+  gets a `Nightreign-Modpack` subfolder; remembered in `HKCU\Software\Nightreign-Modpack\InstallDir`, Enter keeps
+  it, Space picks another), pulls `install.ps1`, `settings.bat`, `README.md`, `LICENSE`, `licenses/` and `mods/`
+  from the repo's `main` branch into it, then runs that `install.ps1` in the same process. Nothing is put next to
+  `install.bat`. A `.git` next to it: runs the checkout as is. `$env:NRPACK_DIR`: that folder, no questions, no
+  registry (used for end-to-end checks).
 - `install.ps1`: checklist, getting the archives (`$sources`), install, settings editor, removal, me3 profiles,
   desktop shortcuts. UTF-8 with BOM.
 - `settings.bat`: `install.ps1 -Settings only`.

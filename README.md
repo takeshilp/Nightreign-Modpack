@@ -14,10 +14,12 @@ the game's own files are never changed.
 
 ## Install
 
-1. Download **[install.bat](https://github.com/takeshilp/Nightreign-Modpack/releases/latest/download/install.bat)**.
-2. Put it into an empty folder on a drive with about 15 GB free, e.g. `D:\Games\Nightreign-Modpack`.
-   Not the game folder, not Downloads, not OneDrive.
-3. Run it. It updates itself from this repository, then shows the mod list (all on by default).
+1. Download **[install.bat](https://github.com/takeshilp/Nightreign-Modpack/releases/latest/download/install.bat)**
+   and run it from anywhere, Downloads included: nothing is put next to it.
+2. Choose the pack's folder on a drive with about 15 GB free, e.g. `D:\Games`. A non-empty folder gets a
+   `Nightreign-Modpack` subfolder. Not the game folder, not OneDrive. The choice is remembered; on the next runs
+   `Enter` keeps it and `Space` picks another one.
+3. The installer updates itself from this repository into that folder, then shows the mod list (all on by default).
 
 The installer fetches everything itself:
 
@@ -55,7 +57,8 @@ Saves are kept apart: Seamless Co-op uses `NR0000.co2`, the Vins server `NR0000.
 
 ## Settings, update, repair, removal
 
-- `settings.bat`: enemy scaling in co-op, save file extension, FPS limit, FOV, the Vins server room name.
+- `settings.bat` in the pack's folder: enemy scaling in co-op, save file extension, FPS limit, FOV, the Vins
+  server room name.
   Close the game first.
 - `install.bat` again: change the mod set or repair the installation (settings are kept), open the settings, or
   remove everything the pack installed (saves are not touched).

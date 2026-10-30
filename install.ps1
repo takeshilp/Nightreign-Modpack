@@ -584,6 +584,6 @@ if ($Mods) {
 Install-Mods $modSel
 
 if ($Settings -eq 'ask') {
-    Write-Host "`nEnter = открыть настройки модов, Esc = пропустить (потом можно через settings.bat)"
+    Write-Host "`nEnter = открыть настройки модов, Esc = пропустить (потом: settings.bat в папке $PSScriptRoot)"
     if ((Read-MenuKey) -eq 'Enter') { Edit-Settings; Clear-Host }
 }

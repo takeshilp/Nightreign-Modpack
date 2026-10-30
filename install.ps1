@@ -25,7 +25,9 @@ $sources = @{
     # Built by tools\merge_evn_ru.py from one Vins zip, whose size is VinsSize: it fits no other Vins version
     evn    = @{ Pattern = 'EVN Russian for ELDEN VINS 1-5-2.zip'; File = 'EVN Russian for ELDEN VINS 1-5-2.zip'; VinsSize = 6298366949
                 Drive = '1deIupoipWD3NAwmBIRyUL7GN_1V5o9Pr'; Sha256 = '8CAB8AE94846B87FB5B7D97D5E6D66ACD5AC54B1CD1B533B8A7EBEE0BD92D8E1' }
-    coop   = @{ Has = 'SeamlessCoop/nrsc.dll'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/3?tab=files'; Title = 'Seamless Co-op' }
+    coop   = @{ Has = 'SeamlessCoop/nrsc.dll'; File = 'Seamless Co-op (Nightreign)-4199.zip'
+                Drive = '19prfPdo4dWrALVkMfX4j4j6vwS2J4ie2'; Sha256 = 'B5D3CBD3CEC5BA9D7C9FAF7C4E51C56A70E21120732C3F3B15E59DFBBD35ACE8'
+                Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/3?tab=files'; Title = 'Seamless Co-op' }
     # YUINEXUS: message keys only the Nightreign Seamless has
     coopru = @{ Has = 'russian.json'; Text = 'YUINEXUS'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/775?tab=files'
                 Title = 'Russian Translation of Seamless Co-op' }

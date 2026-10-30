@@ -24,9 +24,9 @@ only `install.bat` from the latest release. UI style follows H0oxy's DS2 Seamles
   `%LOCALAPPDATA%\garyttierney\me3` (where ME3 Manager puts it). Found there, via the official installer's
   `HKCU\Software\garyttierney\me3\Install_Dir`, or on PATH.
 - ME3 Manager: GitHub release. Every GitHub download is checked against the API's sha256 digest.
-- Elden Vins, the Russian patch and Seamless Co-op: the owner's Google Drive (file id + SHA-256 pinned); empty id
-  or a Drive failure falls back to Nexus (the patch is skipped instead).
-- Seamless Co-op's Russian translation: Nexus by hand, picked up from the Downloads folder (no Drive link yet).
+- Elden Vins, the Russian patch, Seamless Co-op and its Russian translation: the owner's Google Drive (file id +
+  SHA-256 pinned); empty id or a Drive failure falls back to Nexus by hand, picked up from the Downloads folder
+  (the patch is skipped instead).
 - Unlock The FPS / Adjust The FOV: shipped in the repo's `mods/`; the owner's Drive copies are byte-identical, unused.
 
 ## Commands

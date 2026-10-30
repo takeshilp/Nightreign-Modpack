@@ -66,8 +66,9 @@
   AdjustTheFov have MIT sources (`Loukious/NightreignUnlockTheFps`, `Loukious/NightreignAdjustTheFov`), no releases.
 - ME3 Manager has official GitHub releases too (`2Pz/me3-manager`, MIT); its Windows zip is byte-identical to the Nexus file.
 - Elden Vins and EVN Russian: permissions unknown (Nexus pages return 403 to tools). The owner chose to host Vins,
-  the merged Russian patch and (2026-10-31) Seamless Co-op on Google Drive for friends only, and took
-  responsibility for the authors' permission. The Seamless zip on Drive is byte-identical to the Nexus file 4199.
+  the merged Russian patch and (2026-10-31) Seamless Co-op with its translation on Google Drive for friends only,
+  and took responsibility for the authors' permission. Those Drive zips are byte-identical to the Nexus files
+  4199 and 4319.
 - The Seamless Russian translation is Nexus mod 775 (confirmed by the owner).
 
 ## Unlock The FPS / Adjust The FOV ignore their config.ini under me3

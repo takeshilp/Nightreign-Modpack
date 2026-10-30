@@ -21,12 +21,12 @@ the game's own files are never changed.
 
 The installer fetches everything itself:
 
-- Mod Engine 3 and ME3 Manager from their GitHub releases; Elden Vins, its Russian patch and Seamless Co-op from
-  the pack's cloud copy; Unlock The FPS / Adjust The FOV from this repository. Downloads are checked against
-  SHA-256 and resume after an interruption.
-- **The Russian translation of Seamless Co-op comes from Nexus Mods** (also anything the cloud refuses to give).
-  The installer opens the page: click *Manual download* → *Slow download* (a free Nexus account is needed).
-  It picks the file up from your Downloads folder by itself.
+- Mod Engine 3 and ME3 Manager from their GitHub releases; Elden Vins, its Russian patch, Seamless Co-op and its
+  translation from the pack's cloud copy; Unlock The FPS / Adjust The FOV from this repository. Downloads are
+  checked against SHA-256 and resume after an interruption.
+- If the cloud refuses a download (Google's daily quota), the installer opens the mod's Nexus page instead: click
+  *Manual download* → *Slow download* (a free Nexus account is needed). It picks the file up from your Downloads
+  folder by itself.
 
 Requirements: ELDEN RING NIGHTREIGN from Steam, Windows 10 or 11, Steam running.
 

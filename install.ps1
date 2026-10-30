@@ -29,7 +29,9 @@ $sources = @{
                 Drive = '19prfPdo4dWrALVkMfX4j4j6vwS2J4ie2'; Sha256 = 'B5D3CBD3CEC5BA9D7C9FAF7C4E51C56A70E21120732C3F3B15E59DFBBD35ACE8'
                 Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/3?tab=files'; Title = 'Seamless Co-op' }
     # YUINEXUS: message keys only the Nightreign Seamless has
-    coopru = @{ Has = 'russian.json'; Text = 'YUINEXUS'; Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/775?tab=files'
+    coopru = @{ Has = 'russian.json'; Text = 'YUINEXUS'; File = 'Russian Translation of Seamless Co-op (Nightreign)-4319.zip'
+                Drive = '17iZ4SYHAotgyqD5jCz--FtDNI4wOD50U'; Sha256 = 'C2AED7BF2EAFF35F5F1B52ED82C9AC92488B63D46628C1B4E9ED1F8790F708D0'
+                Nexus = 'https://www.nexusmods.com/eldenringnightreign/mods/775?tab=files'
                 Title = 'Russian Translation of Seamless Co-op' }
     fps    = @{ Has = 'UnlockTheFps.dll' }
     fov    = @{ Has = 'AdjustTheFov.dll' }
